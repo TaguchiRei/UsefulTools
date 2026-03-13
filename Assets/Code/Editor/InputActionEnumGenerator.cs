@@ -4,28 +4,59 @@ using UnityEngine.InputSystem;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Linq;
 
-namespace XenoSiteFactory.Editor
+namespace UsefulTools.Editor
 {
     /// <summary>
     /// InputActionAssetからActionMapとActionのenumを自動生成するエディタ拡張
     /// </summary>
-    public class InputActionEnumGenerator : EditorWindow
+    public class InputActionEnumGenerator
     {
-        /// <summary>
-        /// 指定された設定でenumファイルを生成します。
-        /// </summary>
-        /// <param name="asset">対象のInputActionAsset</param>
-        /// <param name="folderPath">出力先フォルダパス (例: "Assets/Code/Generated")</param>
-        /// <param name="ns">名前空間</param>
-        /// <returns>成功したかどうか</returns>
-        public static bool Generate(InputActionAsset asset, string folderPath, string ns)
+        public static void GenerateAll()
+        {
+            var guids = AssetDatabase.FindAssets("t:InputActionAsset");
+            bool anyGenerated = false;
+
+            // フィルタリング設定を取得
+            string[] ignorePatterns = InputSupportTool.IgnorePatterns
+                .Split(new[] { ',' }, System.StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => p.Trim())
+                .ToArray();
+
+            foreach (var guid in guids)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                
+                // 除外パターンに一致するか確認
+                if (ignorePatterns.Any(pattern => path.Contains(pattern))) continue;
+
+                var asset = AssetDatabase.LoadAssetAtPath<InputActionAsset>(path);
+                if (asset != null)
+                {
+                    if (Generate(asset))
+                    {
+                        anyGenerated = true;
+                    }
+                }
+            }
+
+            if (anyGenerated)
+            {
+                AssetDatabase.Refresh();
+            }
+        }
+
+        public static bool Generate(InputActionAsset asset)
         {
             if (asset == null) return false;
 
-            string assetName = asset.name;
+            string folderPath = InputSupportTool.OutputFolder;
+            string ns = InputSupportTool.Namespace;
+
             string directoryPath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", folderPath));
-            string filePath = Path.Combine(directoryPath, $"ActionMapEnum.cs");
+            string sanitizedAssetName = SanitizeName(asset.name);
+            string filePath = Path.Combine(directoryPath, $"{sanitizedAssetName}Enum.cs");
 
             if (!Directory.Exists(directoryPath))
             {
@@ -35,48 +66,54 @@ namespace XenoSiteFactory.Editor
             var sb = new StringBuilder();
 
             sb.AppendLine("// 自動生成ファイルの為、手動での編集は上書きされます。");
+            sb.AppendLine($"namespace {ns}");
+            sb.AppendLine("{");
+            // アセット名のクラスで囲むことで、複数のアセットがあってもEnum名が衝突しないようにする
+            sb.AppendLine($"    public static class {sanitizedAssetName}");
+            sb.AppendLine("    {");
 
             // 1. ActionMapのenumを生成
-            string actionMapEnumName = $"ActionMaps";
-            sb.AppendLine($"public enum {actionMapEnumName}");
-            sb.AppendLine("{");
+            sb.AppendLine("        public enum ActionMaps");
+            sb.AppendLine("        {");
             int i = 0;
             foreach (var map in asset.actionMaps)
             {
-                sb.AppendLine($"    {SanitizeName(map.name)} = {i},");
+                sb.AppendLine($"            {SanitizeName(map.name)} = {i},");
                 i++;
             }
-
-            sb.AppendLine("}");
+            sb.AppendLine("        }");
             sb.AppendLine();
 
             // 2. 各ActionMapに対応するActionのenumを生成
             foreach (var map in asset.actionMaps)
             {
                 string actionEnumName = $"{SanitizeName(map.name)}Actions";
-                sb.AppendLine($"public enum {actionEnumName}");
-                sb.AppendLine("{");
+                sb.AppendLine($"        public enum {actionEnumName}");
+                sb.AppendLine("        {");
 
                 i = 0;
                 foreach (var action in map.actions)
                 {
-                    sb.AppendLine($"    {SanitizeName(action.name)} = {i},");
+                    sb.AppendLine($"            {SanitizeName(action.name)} = {i},");
                     i++;
                 }
 
-                sb.AppendLine("}");
+                sb.AppendLine("        }");
                 sb.AppendLine();
             }
 
+            sb.AppendLine("    }");
+            sb.AppendLine("}");
+
             try
             {
-                File.WriteAllText(filePath, sb.ToString());
-                Debug.Log($"[InputActionEnumGenerator] Generated enums at: {filePath}");
+                File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
+                Debug.Log($"[UsefulTools] Input enums generated for '{asset.name}' at: {filePath}");
                 return true;
             }
             catch (System.Exception e)
             {
-                Debug.LogError($"[InputActionEnumGenerator] Failed to write file at {filePath}. Exception: {e}");
+                Debug.LogError($"[UsefulTools] Failed to generate input enums for '{asset.name}'. {e}");
                 return false;
             }
         }

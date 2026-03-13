@@ -44,13 +44,12 @@ namespace UsefulTools.Editor
 
         private void OnFocus()
         {
-            // フォーカス時に更新するかどうかの設定があればここで
             Initialize();
         }
 
         private void OnEnumGenerated()
         {
-            if (SceneManagementPage.Timing == GenerateTiming.OnSceneLoaderUpdate)
+            if (SceneSupportTool.Timing == GenerateTiming.OnToolUpdate)
             {
                 Initialize();
                 Repaint();
@@ -59,14 +58,14 @@ namespace UsefulTools.Editor
 
         private void Initialize()
         {
-            string targetPath = PathSettingPage.SceneSearchPath;
+            string targetPath = SceneSupportTool.SceneSearchPath;
             if (!AssetDatabase.IsValidFolder(targetPath)) return;
 
             var sceneGuids = AssetDatabase.FindAssets("t:Scene", new[] { targetPath });
             var scenePaths = sceneGuids.Select(AssetDatabase.GUIDToAssetPath).Distinct().ToArray();
 
             // フィルタリング（Generatorと同じルールを適用）
-            string[] ignorePatterns = SceneManagementPage.IgnorePatterns
+            string[] ignorePatterns = SceneSupportTool.IgnorePatterns
                 .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(p => p.Trim())
                 .ToArray();
@@ -134,7 +133,6 @@ namespace UsefulTools.Editor
                 }
                 else
                 {
-                    // 検索文字が空の時はプレースホルダー的に空のボタンを置いてレイアウトを維持
                     GUILayout.Box("", "ToolbarSearchCancelButtonEmpty", GUILayout.Width(16));
                 }
             }

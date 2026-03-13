@@ -26,7 +26,7 @@ namespace UsefulTools.Editor
 
         private static void OnSceneListChanged()
         {
-            if (SceneManagementPage.Timing != GenerateTiming.None)
+            if (SceneSupportTool.Timing != GenerateTiming.None)
             {
                 Generate();
             }
@@ -34,7 +34,7 @@ namespace UsefulTools.Editor
 
         private static void OnNewSceneCreated(UnityEngine.SceneManagement.Scene scene, NewSceneSetup setup, NewSceneMode mode)
         {
-            if (SceneManagementPage.Timing != GenerateTiming.None)
+            if (SceneSupportTool.Timing != GenerateTiming.None)
             {
                 Generate();
             }
@@ -43,8 +43,8 @@ namespace UsefulTools.Editor
         [MenuItem("UsefulTools/Generate/Scene Enum")]
         public static void Generate()
         {
-            string targetPath = PathSettingPage.SceneSearchPath;
-            string outputPath = PathSettingPage.EnumOutputPath;
+            string targetPath = SceneSupportTool.SceneSearchPath;
+            string outputPath = SceneSupportTool.EnumOutputPath;
 
             // ターゲットフォルダが存在するか確認
             if (!AssetDatabase.IsValidFolder(targetPath))
@@ -58,7 +58,7 @@ namespace UsefulTools.Editor
             var scenePaths = sceneGuids.Select(AssetDatabase.GUIDToAssetPath).Distinct().ToArray();
 
             // フィルタリング
-            string[] ignorePatterns = SceneManagementPage.IgnorePatterns
+            string[] ignorePatterns = SceneSupportTool.IgnorePatterns
                 .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
                 .Select(p => p.Trim())
                 .ToArray();
@@ -100,15 +100,15 @@ namespace UsefulTools.Editor
             // コード生成
             StringBuilder code = new StringBuilder();
             code.AppendLine("// 自動生成ファイルの為、手動での編集は上書きされます。");
-            code.AppendLine($"namespace {SceneManagementPage.Namespace}");
+            code.AppendLine($"namespace {SceneSupportTool.Namespace}");
             code.AppendLine("{");
-            code.AppendLine($"    public enum {SceneManagementPage.InListEnumName}");
+            code.AppendLine($"    public enum {SceneSupportTool.InListEnumName}");
             code.AppendLine("    {");
             foreach (var scene in includedScenesList)
                 code.AppendLine($"        {scene},");
             code.AppendLine("    }\n");
 
-            code.AppendLine($"    public enum {SceneManagementPage.OutListEnumName}");
+            code.AppendLine($"    public enum {SceneSupportTool.OutListEnumName}");
             code.AppendLine("    {");
             foreach (var scene in excludedScenesList)
                 code.AppendLine($"        {scene},");
