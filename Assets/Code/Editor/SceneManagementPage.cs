@@ -38,6 +38,5 @@ namespace UsefulTools.Editor
     {
         None = 0,
         OnSceneListUpdate = 1,
-        OnSceneLoaderUpdate = 2,
     }
 }
