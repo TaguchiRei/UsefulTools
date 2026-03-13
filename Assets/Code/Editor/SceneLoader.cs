@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -8,12 +10,19 @@ namespace UsefulTools.Editor
 {
     public class SceneLoader : EditorWindow
     {
-        private string[] _onListScenes;
-        private string[] _outListScenes;
+        private List<SceneInfo> _onListScenes = new List<SceneInfo>();
+        private List<SceneInfo> _outListScenes = new List<SceneInfo>();
         private Vector2 _onListScroll;
         private Vector2 _outListScroll;
+        private string _searchText = "";
+        private bool _groupByFolder = false;
 
-        private const string TargetScenesPath = "Assets/Level/Scenes";
+        private struct SceneInfo
+        {
+            public string Name;
+            public string Path;
+            public string Folder;
+        }
 
         [MenuItem("UsefulTools/Scene Loader")]
         public static void ShowWindow()
@@ -24,100 +33,157 @@ namespace UsefulTools.Editor
 
         private void OnEnable()
         {
+            SceneEnumGenerator.OnGenerated += OnEnumGenerated;
             Initialize();
+        }
+
+        private void OnDisable()
+        {
+            SceneEnumGenerator.OnGenerated -= OnEnumGenerated;
+        }
+
+        private void OnFocus()
+        {
+            // フォーカス時に更新するかどうかの設定があればここで
+            Initialize();
+        }
+
+        private void OnEnumGenerated()
+        {
+            if (SceneManagementPage.Timing == GenerateTiming.OnSceneLoaderUpdate)
+            {
+                Initialize();
+                Repaint();
+            }
         }
 
         private void Initialize()
         {
-            try
+            string targetPath = PathSettingPage.SceneSearchPath;
+            if (!AssetDatabase.IsValidFolder(targetPath)) return;
+
+            var sceneGuids = AssetDatabase.FindAssets("t:Scene", new[] { targetPath });
+            var scenePaths = sceneGuids.Select(AssetDatabase.GUIDToAssetPath).Distinct().ToArray();
+
+            // フィルタリング（Generatorと同じルールを適用）
+            string[] ignorePatterns = SceneManagementPage.IgnorePatterns
+                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => p.Trim())
+                .ToArray();
+
+            var buildScenes = EditorBuildSettings.scenes.ToDictionary(s => s.path, s => s.enabled);
+
+            _onListScenes.Clear();
+            _outListScenes.Clear();
+
+            foreach (var path in scenePaths)
             {
-                _onListScenes = Enum.GetNames(typeof(InListSceneName));
-                _outListScenes = Enum.GetNames(typeof(OutListSceneName));
-            }
-            catch
-            {
-                // Enumがまだ生成されていない場合など
-                _onListScenes = Array.Empty<string>();
-                _outListScenes = Array.Empty<string>();
+                if (ignorePatterns.Any(pattern => path.Contains(pattern))) continue;
+
+                var info = new SceneInfo
+                {
+                    Name = Path.GetFileNameWithoutExtension(path),
+                    Path = path,
+                    Folder = Path.GetDirectoryName(path).Replace("\\", "/").Replace(targetPath, "")
+                };
+
+                if (buildScenes.TryGetValue(path, out bool enabled) && enabled)
+                {
+                    _onListScenes.Add(info);
+                }
+                else
+                {
+                    _outListScenes.Add(info);
+                }
             }
         }
 
         private void OnGUI()
         {
-            using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
-            {
-                if (GUILayout.Button("シーンリストを更新", EditorStyles.toolbarButton))
-                {
-                    Initialize();
-                }
-                GUILayout.FlexibleSpace();
-            }
-
-            EditorGUILayout.Space(5);
+            DrawToolbar();
 
             using (new EditorGUILayout.HorizontalScope())
             {
                 // On List Scenes
-                using (new EditorGUILayout.VerticalScope())
-                {
-                    EditorGUILayout.LabelField("Build Settings (Included)", EditorStyles.boldLabel);
-                    using (var scroll = new EditorGUILayout.ScrollViewScope(_onListScroll, EditorStyles.helpBox))
-                    {
-                        _onListScroll = scroll.scrollPosition;
-                        DrawSceneButtons(_onListScenes);
-                    }
-                }
-
+                DrawSceneList("Build Settings (Included)", _onListScenes, ref _onListScroll);
                 // Out List Scenes
-                using (new EditorGUILayout.VerticalScope())
+                DrawSceneList("Project (Excluded)", _outListScenes, ref _outListScroll);
+            }
+        }
+
+        private void DrawToolbar()
+        {
+            using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
+            {
+                if (GUILayout.Button("Refresh", EditorStyles.toolbarButton)) Initialize();
+                
+                GUILayout.Space(5);
+                _groupByFolder = GUILayout.Toggle(_groupByFolder, "Group by Folder", EditorStyles.toolbarButton);
+                
+                GUILayout.FlexibleSpace();
+                
+                GUILayout.Label("Search:", EditorStyles.miniLabel);
+                _searchText = EditorGUILayout.TextField(_searchText, EditorStyles.toolbarSearchField, GUILayout.Width(150));
+                if (GUILayout.Button("", "ToolbarSeachCancelButton"))
                 {
-                    EditorGUILayout.LabelField("Project (Excluded)", EditorStyles.boldLabel);
-                    using (var scroll = new EditorGUILayout.ScrollViewScope(_outListScroll, EditorStyles.helpBox))
+                    _searchText = "";
+                    GUI.FocusControl(null);
+                }
+            }
+        }
+
+        private void DrawSceneList(string title, List<SceneInfo> scenes, ref Vector2 scrollPos)
+        {
+            using (new EditorGUILayout.VerticalScope())
+            {
+                EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
+                
+                using (var scroll = new EditorGUILayout.ScrollViewScope(scrollPos, EditorStyles.helpBox))
+                {
+                    scrollPos = scroll.scrollPosition;
+
+                    var filteredScenes = scenes;
+                    if (!string.IsNullOrEmpty(_searchText))
                     {
-                        _outListScroll = scroll.scrollPosition;
-                        DrawSceneButtons(_outListScenes);
+                        filteredScenes = scenes.Where(s => s.Name.IndexOf(_searchText, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+                    }
+
+                    if (_groupByFolder)
+                    {
+                        var groups = filteredScenes.GroupBy(s => s.Folder).OrderBy(g => g.Key);
+                        foreach (var group in groups)
+                        {
+                            string folderName = string.IsNullOrEmpty(group.Key) ? "/" : group.Key;
+                            EditorGUILayout.LabelField(folderName, EditorStyles.miniBoldLabel);
+                            foreach (var scene in group) DrawSceneButton(scene);
+                            EditorGUILayout.Space(2);
+                        }
+                    }
+                    else
+                    {
+                        foreach (var scene in filteredScenes) DrawSceneButton(scene);
                     }
                 }
             }
         }
 
-        private void DrawSceneButtons(string[] sceneNames)
+        private void DrawSceneButton(SceneInfo scene)
         {
-            if (sceneNames == null || sceneNames.Length == 0)
+            using (new EditorGUILayout.HorizontalScope())
             {
-                EditorGUILayout.LabelField("No scenes found.");
-                return;
-            }
-
-            foreach (var sceneName in sceneNames)
-            {
-                if (GUILayout.Button(sceneName, GUILayout.Height(25)))
+                if (GUILayout.Button(scene.Name, GUILayout.Height(22)))
                 {
-                    LoadSceneByName(sceneName);
+                    if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                    {
+                        EditorSceneManager.OpenScene(scene.Path);
+                    }
                 }
-            }
-        }
-
-        private void LoadSceneByName(string sceneName)
-        {
-            // Assets/Level/Scenes 以下からシーン名を元にパスを検索
-            string[] guids = AssetDatabase.FindAssets($"{sceneName} t:Scene", new[] { TargetScenesPath });
-            
-            // 完全に一致する名前のシーンを探す
-            string scenePath = guids
-                .Select(AssetDatabase.GUIDToAssetPath)
-                .FirstOrDefault(path => System.IO.Path.GetFileNameWithoutExtension(path) == sceneName);
-
-            if (!string.IsNullOrEmpty(scenePath))
-            {
-                if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+                
+                if (GUILayout.Button("P", GUILayout.Width(20), GUILayout.Height(22)))
                 {
-                    EditorSceneManager.OpenScene(scenePath);
+                    var asset = AssetDatabase.LoadAssetAtPath<SceneAsset>(scene.Path);
+                    EditorGUIUtility.PingObject(asset);
                 }
-            }
-            else
-            {
-                Debug.LogError($"[UsefulTools] Scene not found in {TargetScenesPath}: {sceneName}");
             }
         }
     }

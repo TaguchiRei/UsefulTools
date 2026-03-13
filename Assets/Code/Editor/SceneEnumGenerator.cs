@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -5,14 +6,17 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UsefulTools.Editor;
 
 namespace UsefulTools.Editor
 {
     [InitializeOnLoad]
     public class SceneEnumGenerator
     {
-        private const string OutputPath = "Assets/Code/AutoGenerate/SceneEnum.cs";
-        private const string TargetScenesPath = "Assets/Level/Scenes";
+        /// <summary>
+        /// Enum生成完了時に発行されるイベント
+        /// </summary>
+        public static event Action OnGenerated;
 
         static SceneEnumGenerator()
         {
@@ -22,7 +26,7 @@ namespace UsefulTools.Editor
 
         private static void OnSceneListChanged()
         {
-            if (SceneManagementPage.Timing == GenerateTiming.OnSceneListUpdate)
+            if (SceneManagementPage.Timing != GenerateTiming.None)
             {
                 Generate();
             }
@@ -30,7 +34,7 @@ namespace UsefulTools.Editor
 
         private static void OnNewSceneCreated(UnityEngine.SceneManagement.Scene scene, NewSceneSetup setup, NewSceneMode mode)
         {
-            if (SceneManagementPage.Timing == GenerateTiming.OnSceneListUpdate)
+            if (SceneManagementPage.Timing != GenerateTiming.None)
             {
                 Generate();
             }
@@ -39,20 +43,36 @@ namespace UsefulTools.Editor
         [MenuItem("UsefulTools/Generate/Scene Enum")]
         public static void Generate()
         {
-            // Assets/Level/Scenes フォルダが存在するか確認
-            if (!AssetDatabase.IsValidFolder(TargetScenesPath))
+            string targetPath = PathSettingPage.SceneSearchPath;
+            string outputPath = PathSettingPage.EnumOutputPath;
+
+            // ターゲットフォルダが存在するか確認
+            if (!AssetDatabase.IsValidFolder(targetPath))
             {
-                Debug.LogWarning($"[UsefulTools] Target scenes directory not found: {TargetScenesPath}");
+                Debug.LogWarning($"[UsefulTools] Target scenes directory not found: {targetPath}");
                 return;
             }
 
             // 指定ディレクトリ内の全シーンファイルを取得
-            var sceneGuids = AssetDatabase.FindAssets("t:Scene", new[] { TargetScenesPath });
+            var sceneGuids = AssetDatabase.FindAssets("t:Scene", new[] { targetPath });
             var scenePaths = sceneGuids.Select(AssetDatabase.GUIDToAssetPath).Distinct().ToArray();
+
+            // フィルタリング
+            string[] ignorePatterns = SceneManagementPage.IgnorePatterns
+                .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => p.Trim())
+                .ToArray();
+
+            if (ignorePatterns.Length > 0)
+            {
+                scenePaths = scenePaths.Where(path => 
+                    !ignorePatterns.Any(pattern => path.Contains(pattern))
+                ).ToArray();
+            }
 
             if (scenePaths.Length == 0)
             {
-                Debug.Log($"[UsefulTools] No scenes found in {TargetScenesPath}");
+                Debug.Log($"[UsefulTools] No scenes found in {targetPath}");
                 return;
             }
 
@@ -65,7 +85,6 @@ namespace UsefulTools.Editor
             foreach (var path in scenePaths)
             {
                 string sceneName = Path.GetFileNameWithoutExtension(path);
-                // 名前を正規化
                 string normalizedName = Regex.Replace(sceneName, @"[^a-zA-Z0-9_]", "_");
 
                 if (buildScenes.TryGetValue(path, out bool enabled) && enabled)
@@ -81,15 +100,15 @@ namespace UsefulTools.Editor
             // コード生成
             StringBuilder code = new StringBuilder();
             code.AppendLine("// 自動生成ファイルの為、手動での編集は上書きされます。");
-            code.AppendLine("namespace UsefulTools.AutoGenerate");
+            code.AppendLine($"namespace {SceneManagementPage.Namespace}");
             code.AppendLine("{");
-            code.AppendLine("    public enum InListSceneName");
+            code.AppendLine($"    public enum {SceneManagementPage.InListEnumName}");
             code.AppendLine("    {");
             foreach (var scene in includedScenesList)
                 code.AppendLine($"        {scene},");
             code.AppendLine("    }\n");
 
-            code.AppendLine("    public enum OutListSceneName");
+            code.AppendLine($"    public enum {SceneManagementPage.OutListEnumName}");
             code.AppendLine("    {");
             foreach (var scene in excludedScenesList)
                 code.AppendLine($"        {scene},");
@@ -97,15 +116,19 @@ namespace UsefulTools.Editor
             code.AppendLine("}");
 
             // 書き出し処理
-            string dir = Path.GetDirectoryName(OutputPath);
+            string dir = Path.GetDirectoryName(outputPath);
             if (!Directory.Exists(dir))
             {
                 Directory.CreateDirectory(dir);
             }
 
-            File.WriteAllText(OutputPath, code.ToString(), Encoding.UTF8);
+            File.WriteAllText(outputPath, code.ToString(), Encoding.UTF8);
             AssetDatabase.Refresh();
-            Debug.Log($"[UsefulTools] SceneEnum generated from {TargetScenesPath}");
+            
+            Debug.Log($"[UsefulTools] SceneEnum generated to {outputPath}");
+
+            // イベント発行
+            OnGenerated?.Invoke();
         }
     }
 }
