@@ -124,10 +124,18 @@ namespace UsefulTools.Editor
                 
                 GUILayout.Label("Search:", EditorStyles.miniLabel);
                 _searchText = EditorGUILayout.TextField(_searchText, EditorStyles.toolbarSearchField, GUILayout.Width(150));
-                if (GUILayout.Button("", "ToolbarSeachCancelButton"))
+                if (!string.IsNullOrEmpty(_searchText))
                 {
-                    _searchText = "";
-                    GUI.FocusControl(null);
+                    if (GUILayout.Button("", "ToolbarSearchCancelButton"))
+                    {
+                        _searchText = "";
+                        GUI.FocusControl(null);
+                    }
+                }
+                else
+                {
+                    // 検索文字が空の時はプレースホルダー的に空のボタンを置いてレイアウトを維持
+                    GUILayout.Box("", "ToolbarSearchCancelButtonEmpty", GUILayout.Width(16));
                 }
             }
         }
