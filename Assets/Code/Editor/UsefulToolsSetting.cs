@@ -15,7 +15,7 @@ namespace UsefulTools.Editor
 
         private bool IsInitialized => _pages != null && _pages.Count > 0;
 
-        [MenuItem("Window/UsefulTools/Settings")]
+        [MenuItem("UsefulTools/Settings")]
         public static void ShowWindow()
         {
             var window = GetWindow<UsefulToolsSetting>("Useful Tools Settings");

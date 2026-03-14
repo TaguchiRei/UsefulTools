@@ -8,5 +8,6 @@ namespace UsefulTools.AutoGenerate
 
     public enum OutListSceneName
     {
+        Test,
     }
 }

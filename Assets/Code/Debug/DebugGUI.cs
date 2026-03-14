@@ -1,15 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 public class DebugGUI : MonoBehaviour
 {
-    [SerializeField] private Vector2 _position;
-    [SerializeField, Range(20, 100)] private int _fontSize = 20;
-    [SerializeField, Min(5)] private int _averageFPSSampling = 10;
-    [SerializeField] private bool _removeMissingReferences;
+#if UNITY_EDITOR
+    private Vector2 Position => new Vector2(UnityEditor.EditorPrefs.GetFloat("UsefulTools.Debug.PosX", 10f), UnityEditor.EditorPrefs.GetFloat("UsefulTools.Debug.PosY", 10f));
+    private int FontSize => UnityEditor.EditorPrefs.GetInt("UsefulTools.Debug.FontSize", 20);
+    private int FPSSampling => UnityEditor.EditorPrefs.GetInt("UsefulTools.Debug.FPSSampling", 10);
+    private bool RemoveMissingReferences => UnityEditor.EditorPrefs.GetBool("UsefulTools.Debug.RemoveMissing", true);
+#endif
 
-    private readonly List<(string, Func<object>)> _getValueFunc = new();
+    private readonly List<(string, Func<string>)> _getValueFunc = new();
+    private readonly List<(string, Func<string>)> _setValueFunc = new();
     private readonly List<float> _averageFps = new();
     private readonly List<int> _notFindIndexes = new();
 
@@ -31,7 +36,7 @@ public class DebugGUI : MonoBehaviour
             Destroy(gameObject);
         }
     }
-    
+
     private void OnDestroy()
     {
         _instance = null;
@@ -40,25 +45,27 @@ public class DebugGUI : MonoBehaviour
 #if UNITY_EDITOR
     private void OnGUI()
     {
-        if (Event.current.type == UnityEngine.EventType.Layout)
+        if (Event.current.type == EventType.Layout)
         {
             _debugStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = _fontSize
+                fontSize = FontSize
             };
 
             _errorStyle = new GUIStyle(GUI.skin.label)
             {
-                fontSize = _fontSize,
+                fontSize = FontSize,
                 normal =
                 {
                     textColor = Color.red
                 }
             };
         }
+
         if (!Mathf.Approximately(_rect.width, Screen.width) || !Mathf.Approximately(_rect.height, Screen.height))
         {
-            _rect = new Rect(_position.x, _position.y, Screen.width, Screen.height);
+            var pos = Position;
+            _rect = new Rect(pos.x, pos.y, Screen.width, Screen.height);
         }
 
         GUILayout.BeginVertical();
@@ -79,7 +86,7 @@ public class DebugGUI : MonoBehaviour
             {
                 GUILayout.Label($"{refAndName.Item1} : 値が見つかりません。インスタンスはすでに破棄された可能性があります", _errorStyle);
 
-                if (_removeMissingReferences)
+                if (RemoveMissingReferences)
                 {
                     _notFindIndexes.Add(index);
                 }
@@ -88,7 +95,7 @@ public class DebugGUI : MonoBehaviour
             index++;
         }
 
-        if (_removeMissingReferences)
+        if (RemoveMissingReferences)
         {
             _notFindIndexes.Sort();
 
@@ -109,12 +116,39 @@ public class DebugGUI : MonoBehaviour
     private void Update()
     {
         _averageFps.Add(Time.deltaTime);
-        if (_averageFps.Count > _averageFPSSampling)
+        if (_averageFps.Count > FPSSampling)
         {
             _averageFps.RemoveAt(0);
         }
     }
 #endif
+
+    [Conditional("UNITY_EDITOR")]
+    public static void ObserveVariable(string name, Func<string> debugValue)
+    {
+#if UNITY_EDITOR
+        if (_instance == null)
+        {
+            Debug.LogWarning("DebugGUIの初期化前に登録メソッドが呼ばれました");
+            return;
+        }
+
+        _instance._getValueFunc.Add((name, debugValue));
+#endif
+    }
+
+    public static void Log(string message)
+    {
+#if UNITY_EDITOR
+        if (_instance == null)
+        {
+            Debug.LogWarning("DebugGUIの初期化前に登録メソッドが呼ばれました");
+            return;
+        }
+        
+        
+#endif
+    }
 
     private float GetAverageFPS()
     {
@@ -127,19 +161,5 @@ public class DebugGUI : MonoBehaviour
 
         average /= _averageFps.Count;
         return 1f / average;
-    }
-
-
-    public static void Register(string name, Func<object> debugValue)
-    {
-#if UNITY_EDITOR
-        if (_instance == null)
-        {
-            Debug.LogWarning("DebugGUIの初期化前に登録メソッドが呼ばれました");
-            return;
-        }
-
-        _instance._getValueFunc.Add((name, debugValue));
-#endif
     }
 }

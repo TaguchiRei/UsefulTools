@@ -10,6 +10,10 @@ namespace UsefulTools.Editor
         // 設定キー
         private const string LogCaptureEnabledKey = "UsefulTools.Debug.LogCaptureEnabled";
         private const string DebugFontSizeKey = "UsefulTools.Debug.FontSize";
+        private const string DebugPosXKey = "UsefulTools.Debug.PosX";
+        private const string DebugPosYKey = "UsefulTools.Debug.PosY";
+        private const string DebugFPSSamplingKey = "UsefulTools.Debug.FPSSampling";
+        private const string DebugRemoveMissingKey = "UsefulTools.Debug.RemoveMissing";
 
         public static bool LogCaptureEnabled
         {
@@ -17,10 +21,32 @@ namespace UsefulTools.Editor
             set => EditorPrefs.SetBool(LogCaptureEnabledKey, value);
         }
 
-        public static float FontSize
+        public static int FontSize
         {
-            get => EditorPrefs.GetFloat(DebugFontSizeKey, 12f);
-            set => EditorPrefs.SetFloat(DebugFontSizeKey, value);
+            get => EditorPrefs.GetInt(DebugFontSizeKey, 20);
+            set => EditorPrefs.SetInt(DebugFontSizeKey, value);
+        }
+
+        public static Vector2 Position
+        {
+            get => new Vector2(EditorPrefs.GetFloat(DebugPosXKey, 10f), EditorPrefs.GetFloat(DebugPosYKey, 10f));
+            set
+            {
+                EditorPrefs.SetFloat(DebugPosXKey, value.x);
+                EditorPrefs.SetFloat(DebugPosYKey, value.y);
+            }
+        }
+
+        public static int FPSSampling
+        {
+            get => EditorPrefs.GetInt(DebugFPSSamplingKey, 10);
+            set => EditorPrefs.SetInt(DebugFPSSamplingKey, value);
+        }
+
+        public static bool RemoveMissingReferences
+        {
+            get => EditorPrefs.GetBool(DebugRemoveMissingKey, true);
+            set => EditorPrefs.SetBool(DebugRemoveMissingKey, value);
         }
 
         public override void OnGUI()
@@ -38,11 +64,15 @@ namespace UsefulTools.Editor
 
             EditorGUILayout.Space();
 
-            // 表示設定
+            // 表示・挙動設定
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
-                EditorGUILayout.LabelField("Appearance Settings", EditorStyles.miniBoldLabel);
-                FontSize = EditorGUILayout.Slider("Debug GUI Font Size", FontSize, 8f, 24f);
+                EditorGUILayout.LabelField("Debug GUI Appearance & Behavior", EditorStyles.miniBoldLabel);
+                
+                Position = EditorGUILayout.Vector2Field("Screen Position", Position);
+                FontSize = EditorGUILayout.IntSlider("Font Size", FontSize, 20, 100);
+                FPSSampling = EditorGUILayout.IntSlider("FPS Sampling Count", FPSSampling, 5, 100);
+                RemoveMissingReferences = EditorGUILayout.Toggle("Remove Missing References", RemoveMissingReferences);
             }
 
             EditorGUILayout.Space();
