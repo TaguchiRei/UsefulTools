@@ -51,6 +51,9 @@ public class DebugGUI : MonoBehaviour
 
     private readonly StringBuilder _stringBuilder = new(256);
 
+    // スレッドセーフなログキュー
+    private readonly System.Collections.Concurrent.ConcurrentQueue<LogData> _threadedLogQueue = new();
+
 #endif
 
     private void Awake()
@@ -62,6 +65,7 @@ public class DebugGUI : MonoBehaviour
 #if UNITY_EDITOR
             InitializeStyles();
             InitializeBuffers();
+            Application.logMessageReceivedThreaded += OnLogReceived;
 #endif
 
             DontDestroyOnLoad(gameObject);
@@ -74,10 +78,26 @@ public class DebugGUI : MonoBehaviour
 
     private void OnDestroy()
     {
+#if UNITY_EDITOR
+        Application.logMessageReceivedThreaded -= OnLogReceived;
+#endif
         _instance = null;
     }
 
 #if UNITY_EDITOR
+
+    private void OnLogReceived(string condition, string stackTrace, LogType type)
+    {
+        if (!UnityEditor.EditorPrefs.GetBool("UsefulTools.Debug.LogCaptureEnabled", false)) return;
+
+        // メインスレッド以外からも呼ばれるためキューに積む
+        _threadedLogQueue.Enqueue(new LogData
+        {
+            Message = condition,
+            Type = type,
+            Time = -1f // UpdateでTime.timeを代入
+        });
+    }
 
     private void InitializeStyles()
     {
@@ -109,6 +129,17 @@ public class DebugGUI : MonoBehaviour
 
     private void OnGUI()
     {
+        if (_debugStyle == null || _debugStyle.fontSize != FontSize)
+        {
+            InitializeStyles();
+        }
+        if (_logs == null || _logs.Length != MaxLogCount)
+        {
+            InitializeBuffers();
+            _logStart = 0;
+            _logCount = 0;
+        }
+
         if (!Mathf.Approximately(_rect.width, Screen.width) ||
             !Mathf.Approximately(_rect.height, Screen.height))
         {
@@ -123,14 +154,12 @@ public class DebugGUI : MonoBehaviour
         GUI.color = Color.white;
 
         GUI.BeginGroup(_rect);
-
         GUILayout.BeginVertical();
 
         DrawFPS();
         DrawVariables();
 
         GUILayout.EndVertical();
-
         GUI.EndGroup();
 
         DrawLogs();
@@ -155,7 +184,6 @@ public class DebugGUI : MonoBehaviour
     private void DrawVariables()
     {
         int index = 0;
-
         foreach (var item in _getValueFunc)
         {
             try
@@ -167,15 +195,10 @@ public class DebugGUI : MonoBehaviour
 
                 GUILayout.Label(_stringBuilder.ToString(), _debugStyle);
             }
-            catch (MissingReferenceException)
+            catch (Exception)
             {
                 DrawMissing(item.Item1, index);
             }
-            catch (NullReferenceException)
-            {
-                DrawMissing(item.Item1, index);
-            }
-
             index++;
         }
 
@@ -183,12 +206,10 @@ public class DebugGUI : MonoBehaviour
         {
             _removeIndexes.Sort();
             _removeIndexes.Reverse();
-
             foreach (var i in _removeIndexes)
             {
                 _getValueFunc.RemoveAt(i);
             }
-
             _removeIndexes.Clear();
         }
     }
@@ -210,18 +231,12 @@ public class DebugGUI : MonoBehaviour
     private void DrawLogs()
     {
         float areaWidth = Screen.width * 0.5f;
-
-        Rect logArea = new Rect(
-            Screen.width - areaWidth - 10,
-            10,
-            areaWidth,
-            Screen.height - 20
-        );
+        Rect logArea = new Rect(Screen.width - areaWidth - 10, 10, areaWidth, Screen.height - 20);
 
         GUILayout.BeginArea(logArea);
         GUILayout.BeginVertical();
 
-        var prevColor = GUI.contentColor;
+        var prevContentColor = GUI.contentColor;
 
         for (int i = 0; i < _logCount; i++)
         {
@@ -232,7 +247,7 @@ public class DebugGUI : MonoBehaviour
             GUILayout.Label(log.Message, _logStyle);
         }
 
-        GUI.contentColor = prevColor;
+        GUI.contentColor = prevContentColor;
 
         GUILayout.EndVertical();
         GUILayout.EndArea();
@@ -250,12 +265,22 @@ public class DebugGUI : MonoBehaviour
 
     private void Update()
     {
+        ProcessThreadedLogs();
         UpdateFPS();
         UpdateLogs();
     }
 
+    private void ProcessThreadedLogs()
+    {
+        while (_threadedLogQueue.TryDequeue(out var log))
+        {
+            AddLogInternal(log.Message, log.Type);
+        }
+    }
+
     private void UpdateFPS()
     {
+        if (_fpsSamples == null || _fpsSamples.Length == 0) return;
         _fpsSamples[_fpsIndex] = Time.deltaTime;
         _fpsIndex = (_fpsIndex + 1) % _fpsSamples.Length;
 
@@ -267,6 +292,8 @@ public class DebugGUI : MonoBehaviour
 
     private void UpdateLogs()
     {
+        if (_logCount == 0) return;
+
         float current = Time.time;
         float timeout = LogTimeout;
 
@@ -299,16 +326,19 @@ public class DebugGUI : MonoBehaviour
 #endif
     }
 
+    [Conditional("UNITY_EDITOR")]
     public static void Log(string message)
     {
         AddLog(message, LogType.Log);
     }
 
+    [Conditional("UNITY_EDITOR")]
     public static void LogWarning(string message)
     {
         AddLog(message, LogType.Warning);
     }
 
+    [Conditional("UNITY_EDITOR")]
     public static void LogError(string message)
     {
         AddLog(message, LogType.Error);
@@ -317,27 +347,34 @@ public class DebugGUI : MonoBehaviour
     private static void AddLog(string message, LogType type)
     {
 #if UNITY_EDITOR
-        if (_instance == null)
+        // コンソールに流す。購読している OnLogReceived がこれをキャッチして画面にも表示される
+        switch (type)
         {
-            Debug.LogWarning($"DebugGUIの初期化前にログメソッドが呼ばれました: {message}");
-            return;
+            case LogType.Log: UnityEngine.Debug.Log(message); break;
+            case LogType.Warning: UnityEngine.Debug.LogWarning(message); break;
+            case LogType.Error: UnityEngine.Debug.LogError(message); break;
         }
+#endif
+    }
 
-        var gui = _instance;
+    private void AddLogInternal(string message, LogType type)
+    {
+#if UNITY_EDITOR
+        if (_logs == null || _logs.Length == 0) return;
 
-        int index = (gui._logStart + gui._logCount) % gui._logs.Length;
+        int index = (_logStart + _logCount) % _logs.Length;
 
-        gui._logs[index].Message = message;
-        gui._logs[index].Type = type;
-        gui._logs[index].Time = Time.time;
+        _logs[index].Message = message;
+        _logs[index].Type = type;
+        _logs[index].Time = Time.time;
 
-        if (gui._logCount < gui._logs.Length)
+        if (_logCount < _logs.Length)
         {
-            gui._logCount++;
+            _logCount++;
         }
         else
         {
-            gui._logStart = (gui._logStart + 1) % gui._logs.Length;
+            _logStart = (_logStart + 1) % _logs.Length;
         }
 #endif
     }
@@ -345,19 +382,15 @@ public class DebugGUI : MonoBehaviour
     private float GetAverageFPS()
     {
 #if UNITY_EDITOR
-
-        if (_fpsCount == 0)
-            return 0f;
+        if (_fpsCount == 0) return 0f;
 
         float sum = 0;
-
         for (int i = 0; i < _fpsCount; i++)
         {
             sum += _fpsSamples[i];
         }
 
         return 1f / (sum / _fpsCount);
-
 #else
         return 0f;
 #endif
