@@ -14,6 +14,8 @@ namespace UsefulTools.Editor
         private const string DebugPosYKey = "UsefulTools.Debug.PosY";
         private const string DebugFPSSamplingKey = "UsefulTools.Debug.FPSSampling";
         private const string DebugRemoveMissingKey = "UsefulTools.Debug.RemoveMissing";
+        private const string DebugMaxLogCountKey = "UsefulTools.Debug.MaxLogCount";
+        private const string DebugLogTimeoutKey = "UsefulTools.Debug.LogTimeout";
 
         public static bool LogCaptureEnabled
         {
@@ -49,17 +51,31 @@ namespace UsefulTools.Editor
             set => EditorPrefs.SetBool(DebugRemoveMissingKey, value);
         }
 
+        public static int MaxLogCount
+        {
+            get => EditorPrefs.GetInt(DebugMaxLogCountKey, 10);
+            set => EditorPrefs.SetInt(DebugMaxLogCountKey, value);
+        }
+
+        public static float LogTimeout
+        {
+            get => EditorPrefs.GetFloat(DebugLogTimeoutKey, 5.0f);
+            set => EditorPrefs.SetFloat(DebugLogTimeoutKey, value);
+        }
+
         public override void OnGUI()
         {
             EditorGUILayout.LabelField("Debug GUI & Log Settings", EditorStyles.boldLabel);
             EditorGUILayout.Space();
 
-            // ログ取得設定
+            // ログ管理設定
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.LabelField("Log Management", EditorStyles.miniBoldLabel);
                 LogCaptureEnabled = EditorGUILayout.Toggle("Capture Application Logs", LogCaptureEnabled);
-                EditorGUILayout.HelpBox("If enabled, DebugGUI will capture and display logs from Application.logMessageReceived.", MessageType.Info);
+                MaxLogCount = EditorGUILayout.IntSlider("Max Log Count", MaxLogCount, 1, 50);
+                LogTimeout = EditorGUILayout.Slider("Log Timeout (sec)", LogTimeout, 1f, 30f);
+                EditorGUILayout.HelpBox("Settings for DebugGUI.Log and captured application logs.", MessageType.Info);
             }
 
             EditorGUILayout.Space();

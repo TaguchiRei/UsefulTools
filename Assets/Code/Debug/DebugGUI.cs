@@ -1,34 +1,69 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
 public class DebugGUI : MonoBehaviour
 {
 #if UNITY_EDITOR
-    private Vector2 Position => new Vector2(UnityEditor.EditorPrefs.GetFloat("UsefulTools.Debug.PosX", 10f), UnityEditor.EditorPrefs.GetFloat("UsefulTools.Debug.PosY", 10f));
+
+    private Vector2 Position => new Vector2(UnityEditor.EditorPrefs.GetFloat("UsefulTools.Debug.PosX", 10f),
+        UnityEditor.EditorPrefs.GetFloat("UsefulTools.Debug.PosY", 10f));
+
     private int FontSize => UnityEditor.EditorPrefs.GetInt("UsefulTools.Debug.FontSize", 20);
     private int FPSSampling => UnityEditor.EditorPrefs.GetInt("UsefulTools.Debug.FPSSampling", 10);
     private bool RemoveMissingReferences => UnityEditor.EditorPrefs.GetBool("UsefulTools.Debug.RemoveMissing", true);
+    private int MaxLogCount => UnityEditor.EditorPrefs.GetInt("UsefulTools.Debug.MaxLogCount", 10);
+    private float LogTimeout => UnityEditor.EditorPrefs.GetFloat("UsefulTools.Debug.LogTimeout", 5.0f);
+
+    private struct LogData
+    {
+        public string Message;
+        public LogType Type;
+        public float Time;
+    }
+
 #endif
 
     private readonly List<(string, Func<string>)> _getValueFunc = new();
-    private readonly List<(string, Func<string>)> _setValueFunc = new();
-    private readonly List<float> _averageFps = new();
-    private readonly List<int> _notFindIndexes = new();
 
     private static DebugGUI _instance;
 
     private GUIStyle _debugStyle;
     private GUIStyle _errorStyle;
+    private GUIStyle _logStyle;
+
     private Rect _rect;
+
+#if UNITY_EDITOR
+
+    private LogData[] _logs;
+    private int _logStart;
+    private int _logCount;
+
+    private float[] _fpsSamples;
+    private int _fpsIndex;
+    private int _fpsCount;
+
+    private readonly List<int> _removeIndexes = new();
+
+    private readonly StringBuilder _stringBuilder = new(256);
+
+#endif
 
     private void Awake()
     {
         if (_instance == null)
         {
             _instance = this;
+
+#if UNITY_EDITOR
+            InitializeStyles();
+            InitializeBuffers();
+#endif
+
             DontDestroyOnLoad(gameObject);
         }
         else
@@ -43,84 +78,211 @@ public class DebugGUI : MonoBehaviour
     }
 
 #if UNITY_EDITOR
+
+    private void InitializeStyles()
+    {
+        _debugStyle = new GUIStyle
+        {
+            fontSize = FontSize,
+            normal = { textColor = Color.white }
+        };
+
+        _errorStyle = new GUIStyle
+        {
+            fontSize = FontSize,
+            normal = { textColor = Color.red }
+        };
+
+        _logStyle = new GUIStyle
+        {
+            fontSize = FontSize,
+            alignment = TextAnchor.UpperRight,
+            normal = { textColor = Color.white }
+        };
+    }
+
+    private void InitializeBuffers()
+    {
+        _logs = new LogData[MaxLogCount];
+        _fpsSamples = new float[FPSSampling];
+    }
+
     private void OnGUI()
     {
-        if (Event.current.type == EventType.Layout)
-        {
-            _debugStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = FontSize
-            };
-
-            _errorStyle = new GUIStyle(GUI.skin.label)
-            {
-                fontSize = FontSize,
-                normal =
-                {
-                    textColor = Color.red
-                }
-            };
-        }
-
-        if (!Mathf.Approximately(_rect.width, Screen.width) || !Mathf.Approximately(_rect.height, Screen.height))
+        if (!Mathf.Approximately(_rect.width, Screen.width) ||
+            !Mathf.Approximately(_rect.height, Screen.height))
         {
             var pos = Position;
             _rect = new Rect(pos.x, pos.y, Screen.width, Screen.height);
         }
 
-        GUILayout.BeginVertical();
+        var prevEnabled = GUI.enabled;
+        var prevColor = GUI.color;
+
+        GUI.enabled = false;
+        GUI.color = Color.white;
+
         GUI.BeginGroup(_rect);
 
+        GUILayout.BeginVertical();
 
-        GUILayout.Label($"FPS : {(1.0f / Time.deltaTime):000.0}", _debugStyle);
-        GUILayout.Label($"Average FPS : {GetAverageFPS():000.0}", _debugStyle);
+        DrawFPS();
+        DrawVariables();
 
+        GUILayout.EndVertical();
+
+        GUI.EndGroup();
+
+        DrawLogs();
+
+        GUI.enabled = prevEnabled;
+        GUI.color = prevColor;
+    }
+
+    private void DrawFPS()
+    {
+        _stringBuilder.Clear();
+        _stringBuilder.Append("FPS : ");
+        _stringBuilder.Append((1f / Time.deltaTime).ToString("000.0"));
+        GUILayout.Label(_stringBuilder.ToString(), _debugStyle);
+
+        _stringBuilder.Clear();
+        _stringBuilder.Append("Average FPS : ");
+        _stringBuilder.Append(GetAverageFPS().ToString("000.0"));
+        GUILayout.Label(_stringBuilder.ToString(), _debugStyle);
+    }
+
+    private void DrawVariables()
+    {
         int index = 0;
-        foreach (var refAndName in _getValueFunc)
+
+        foreach (var item in _getValueFunc)
         {
             try
             {
-                GUILayout.Label($"{refAndName.Item1} : {refAndName.Item2.Invoke()}", _debugStyle);
-            }
-            catch
-            {
-                GUILayout.Label($"{refAndName.Item1} : 値が見つかりません。インスタンスはすでに破棄された可能性があります", _errorStyle);
+                _stringBuilder.Clear();
+                _stringBuilder.Append(item.Item1);
+                _stringBuilder.Append(" : ");
+                _stringBuilder.Append(item.Item2.Invoke());
 
-                if (RemoveMissingReferences)
-                {
-                    _notFindIndexes.Add(index);
-                }
+                GUILayout.Label(_stringBuilder.ToString(), _debugStyle);
+            }
+            catch (MissingReferenceException)
+            {
+                DrawMissing(item.Item1, index);
+            }
+            catch (NullReferenceException)
+            {
+                DrawMissing(item.Item1, index);
             }
 
             index++;
         }
 
-        if (RemoveMissingReferences)
+        if (RemoveMissingReferences && _removeIndexes.Count > 0)
         {
-            _notFindIndexes.Sort();
+            _removeIndexes.Sort();
+            _removeIndexes.Reverse();
 
-            _notFindIndexes.Reverse();
-
-            foreach (var t in _notFindIndexes)
+            foreach (var i in _removeIndexes)
             {
-                _getValueFunc.RemoveAt(t);
+                _getValueFunc.RemoveAt(i);
             }
 
-            _notFindIndexes.Clear();
+            _removeIndexes.Clear();
+        }
+    }
+
+    private void DrawMissing(string name, int index)
+    {
+        _stringBuilder.Clear();
+        _stringBuilder.Append(name);
+        _stringBuilder.Append(" : 値が見つかりません");
+
+        GUILayout.Label(_stringBuilder.ToString(), _errorStyle);
+
+        if (RemoveMissingReferences)
+        {
+            _removeIndexes.Add(index);
+        }
+    }
+
+    private void DrawLogs()
+    {
+        float areaWidth = Screen.width * 0.5f;
+
+        Rect logArea = new Rect(
+            Screen.width - areaWidth - 10,
+            10,
+            areaWidth,
+            Screen.height - 20
+        );
+
+        GUILayout.BeginArea(logArea);
+        GUILayout.BeginVertical();
+
+        var prevColor = GUI.contentColor;
+
+        for (int i = 0; i < _logCount; i++)
+        {
+            int index = (_logStart + _logCount - 1 - i + _logs.Length) % _logs.Length;
+            var log = _logs[index];
+
+            GUI.contentColor = GetLogColor(log.Type);
+            GUILayout.Label(log.Message, _logStyle);
         }
 
-        GUI.EndGroup();
+        GUI.contentColor = prevColor;
+
         GUILayout.EndVertical();
+        GUILayout.EndArea();
+    }
+
+    private Color GetLogColor(LogType type)
+    {
+        return type switch
+        {
+            LogType.Error or LogType.Exception or LogType.Assert => Color.red,
+            LogType.Warning => Color.yellow,
+            _ => Color.white
+        };
     }
 
     private void Update()
     {
-        _averageFps.Add(Time.deltaTime);
-        if (_averageFps.Count > FPSSampling)
+        UpdateFPS();
+        UpdateLogs();
+    }
+
+    private void UpdateFPS()
+    {
+        _fpsSamples[_fpsIndex] = Time.deltaTime;
+        _fpsIndex = (_fpsIndex + 1) % _fpsSamples.Length;
+
+        if (_fpsCount < _fpsSamples.Length)
         {
-            _averageFps.RemoveAt(0);
+            _fpsCount++;
         }
     }
+
+    private void UpdateLogs()
+    {
+        float current = Time.time;
+        float timeout = LogTimeout;
+
+        for (int i = 0; i < _logCount; i++)
+        {
+            int index = (_logStart + i) % _logs.Length;
+
+            if (current - _logs[index].Time > timeout)
+            {
+                _logStart = (_logStart + 1) % _logs.Length;
+                _logCount--;
+                i--;
+            }
+        }
+    }
+
 #endif
 
     [Conditional("UNITY_EDITOR")]
@@ -139,27 +301,65 @@ public class DebugGUI : MonoBehaviour
 
     public static void Log(string message)
     {
+        AddLog(message, LogType.Log);
+    }
+
+    public static void LogWarning(string message)
+    {
+        AddLog(message, LogType.Warning);
+    }
+
+    public static void LogError(string message)
+    {
+        AddLog(message, LogType.Error);
+    }
+
+    private static void AddLog(string message, LogType type)
+    {
 #if UNITY_EDITOR
         if (_instance == null)
         {
-            Debug.LogWarning("DebugGUIの初期化前に登録メソッドが呼ばれました");
+            Debug.LogWarning($"DebugGUIの初期化前にログメソッドが呼ばれました: {message}");
             return;
         }
-        
-        
+
+        var gui = _instance;
+
+        int index = (gui._logStart + gui._logCount) % gui._logs.Length;
+
+        gui._logs[index].Message = message;
+        gui._logs[index].Type = type;
+        gui._logs[index].Time = Time.time;
+
+        if (gui._logCount < gui._logs.Length)
+        {
+            gui._logCount++;
+        }
+        else
+        {
+            gui._logStart = (gui._logStart + 1) % gui._logs.Length;
+        }
 #endif
     }
 
     private float GetAverageFPS()
     {
-        if (_averageFps.Count == 0) return 0f;
-        float average = 0;
-        foreach (var delta in _averageFps)
+#if UNITY_EDITOR
+
+        if (_fpsCount == 0)
+            return 0f;
+
+        float sum = 0;
+
+        for (int i = 0; i < _fpsCount; i++)
         {
-            average += delta;
+            sum += _fpsSamples[i];
         }
 
-        average /= _averageFps.Count;
-        return 1f / average;
+        return 1f / (sum / _fpsCount);
+
+#else
+        return 0f;
+#endif
     }
 }
