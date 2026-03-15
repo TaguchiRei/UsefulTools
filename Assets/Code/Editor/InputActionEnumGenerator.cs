@@ -4,44 +4,26 @@ using UnityEngine.InputSystem;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.Linq;
 
 namespace UsefulTools.Editor
 {
     /// <summary>
-    /// InputActionAssetからActionMapとActionのenumを自動生成するエディタ拡張
+    /// Project-wide Actionsに設定されたInputActionAssetから
+    /// ActionMapとActionのenumを自動生成するエディタ拡張
     /// </summary>
     public class InputActionEnumGenerator
     {
-        public static void GenerateAll()
+        public static void GenerateAllEnums()
         {
-            var guids = AssetDatabase.FindAssets("t:InputActionAsset");
-            bool anyGenerated = false;
+            var asset = InputSystem.actions;
 
-            // フィルタリング設定を取得
-            string[] ignorePatterns = InputSupportTool.IgnorePatterns
-                .Split(new[] { ',' }, System.StringSplitOptions.RemoveEmptyEntries)
-                .Select(p => p.Trim())
-                .ToArray();
-
-            foreach (var guid in guids)
+            if (asset == null)
             {
-                var path = AssetDatabase.GUIDToAssetPath(guid);
-                
-                // 除外パターンに一致するか確認
-                if (ignorePatterns.Any(pattern => path.Contains(pattern))) continue;
-
-                var asset = AssetDatabase.LoadAssetAtPath<InputActionAsset>(path);
-                if (asset != null)
-                {
-                    if (Generate(asset))
-                    {
-                        anyGenerated = true;
-                    }
-                }
+                Debug.LogError("[UsefulTools] Project-wide Actions が設定されていません。\nProject Settings > Input System Package > Project-wide Actions を設定してください。");
+                return;
             }
 
-            if (anyGenerated)
+            if (Generate(asset))
             {
                 AssetDatabase.Refresh();
             }
@@ -52,7 +34,6 @@ namespace UsefulTools.Editor
             if (asset == null) return false;
 
             string folderPath = InputSupportTool.OutputFolder;
-            string ns = InputSupportTool.Namespace;
 
             string directoryPath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", folderPath));
             string sanitizedAssetName = SanitizeName(asset.name);
@@ -66,44 +47,39 @@ namespace UsefulTools.Editor
             var sb = new StringBuilder();
 
             sb.AppendLine("// 自動生成ファイルの為、手動での編集は上書きされます。");
-            sb.AppendLine($"namespace {ns}");
-            sb.AppendLine("{");
-            // アセット名のクラスで囲むことで、複数のアセットがあってもEnum名が衝突しないようにする
-            sb.AppendLine($"    public static class {sanitizedAssetName}");
-            sb.AppendLine("    {");
 
-            // 1. ActionMapのenumを生成
-            sb.AppendLine("        public enum ActionMaps");
-            sb.AppendLine("        {");
+            // ActionMap enum
+            sb.AppendLine("public enum ActionMaps");
+            sb.AppendLine("{");
+
             int i = 0;
             foreach (var map in asset.actionMaps)
             {
-                sb.AppendLine($"            {SanitizeName(map.name)} = {i},");
+                sb.AppendLine($"    {SanitizeName(map.name)} = {i},");
                 i++;
             }
-            sb.AppendLine("        }");
+
+            sb.AppendLine("}");
             sb.AppendLine();
 
-            // 2. 各ActionMapに対応するActionのenumを生成
+            // Action enum per ActionMap
             foreach (var map in asset.actionMaps)
             {
                 string actionEnumName = $"{SanitizeName(map.name)}Actions";
-                sb.AppendLine($"        public enum {actionEnumName}");
-                sb.AppendLine("        {");
+
+                sb.AppendLine($"public enum {actionEnumName}");
+                sb.AppendLine("{");
 
                 i = 0;
                 foreach (var action in map.actions)
                 {
-                    sb.AppendLine($"            {SanitizeName(action.name)} = {i},");
+                    sb.AppendLine($"    {SanitizeName(action.name)} = {i},");
                     i++;
                 }
 
-                sb.AppendLine("        }");
+                sb.AppendLine("}");
                 sb.AppendLine();
             }
-
-            sb.AppendLine("    }");
-            sb.AppendLine("}");
 
             try
             {
@@ -121,6 +97,7 @@ namespace UsefulTools.Editor
         private static string SanitizeName(string name)
         {
             string sanitized = Regex.Replace(name, @"[^a-zA-Z0-9_]", "");
+
             if (string.IsNullOrEmpty(sanitized))
             {
                 return "_";

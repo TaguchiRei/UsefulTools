@@ -8,7 +8,6 @@ namespace UsefulTools.Editor
         public override string Name => "Input Support";
 
         private const string InputTimingKey = "UsefulTools.Input.GenerateTiming";
-        private const string InputNamespaceKey = "UsefulTools.Input.Namespace";
         private const string InputOutputFolderKey = "UsefulTools.Input.OutputFolder";
         private const string IgnorePatternsKey = "UsefulTools.Input.IgnorePatterns";
 
@@ -16,12 +15,6 @@ namespace UsefulTools.Editor
         {
             get => (GenerateTiming)EditorPrefs.GetInt(InputTimingKey, (int)GenerateTiming.OnAssetChanged);
             private set => EditorPrefs.SetInt(InputTimingKey, (int)value);
-        }
-
-        public static string Namespace
-        {
-            get => EditorPrefs.GetString(InputNamespaceKey, "UsefulTools.Input.Generated");
-            set => EditorPrefs.SetString(InputNamespaceKey, value);
         }
 
         public static string OutputFolder
@@ -59,7 +52,7 @@ namespace UsefulTools.Editor
                 EditorGUILayout.Space(5);
                 if (GUILayout.Button("Scan & Generate All Input Enums", GUILayout.Height(30)))
                 {
-                    InputActionEnumGenerator.GenerateAll();
+                    InputActionEnumGenerator.GenerateAllEnums();
                 }
             }
 
@@ -69,7 +62,6 @@ namespace UsefulTools.Editor
             using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
             {
                 EditorGUILayout.LabelField("Code Structure & Filters", EditorStyles.miniBoldLabel);
-                Namespace = EditorGUILayout.TextField("Namespace", Namespace);
                 IgnorePatterns = EditorGUILayout.TextField("Ignore Patterns", IgnorePatterns);
                 EditorGUILayout.HelpBox("Comma separated (e.g., 'Default, Samples'). Assets containing these will be ignored.", MessageType.Info);
             }
