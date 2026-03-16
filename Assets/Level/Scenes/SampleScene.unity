@@ -520,13 +520,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 355cf342092202149807fa5af195a3f5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneRule
-  _rules:
-    rid: -2
+  _rules: []
   references:
     version: 2
-    RefIds:
-    - rid: -2
-      type: {class: , ns: , asm: }
+    RefIds: []
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
