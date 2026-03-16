@@ -520,10 +520,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 355cf342092202149807fa5af195a3f5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SceneRule
-  _rules: []
+  _rules:
+  - rid: 2576686076704587869
   references:
     version: 2
-    RefIds: []
+    RefIds:
+    - rid: 2576686076704587869
+      type: {class: TimiLimitRule, ns: , asm: Assembly-CSharp}
+      data:
+        _timiLimit: 10
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
