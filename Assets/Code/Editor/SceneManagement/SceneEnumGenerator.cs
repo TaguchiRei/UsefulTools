@@ -44,7 +44,13 @@ namespace UsefulTools.Editor
         public static void Generate()
         {
             string targetPath = SceneSupportTool.SceneSearchPath;
-            string outputPath = SceneSupportTool.EnumOutputPath;
+            // SceneSupportTool.EnumOutputPath からフォルダ部分を抽出
+            string outputFolder = Path.GetDirectoryName(SceneSupportTool.EnumOutputPath).Replace("\\", "/");
+            // 共通設定がある場合はそちらを優先する
+            if (string.IsNullOrEmpty(outputFolder)) outputFolder = CodeSupportTool.EnumOutputFolder;
+            
+            string ns = SceneSupportTool.Namespace;
+            if (string.IsNullOrEmpty(ns)) ns = CodeSupportTool.EnumNamespace;
 
             // ターゲットフォルダが存在するか確認
             if (!AssetDatabase.IsValidFolder(targetPath))
@@ -97,35 +103,11 @@ namespace UsefulTools.Editor
                 }
             }
 
-            // コード生成
-            StringBuilder code = new StringBuilder();
-            code.AppendLine("// 自動生成ファイルの為、手動での編集は上書きされます。");
-            code.AppendLine($"namespace {SceneSupportTool.Namespace}");
-            code.AppendLine("{");
-            code.AppendLine($"    public enum {SceneSupportTool.InListEnumName}");
-            code.AppendLine("    {");
-            foreach (var scene in includedScenesList)
-                code.AppendLine($"        {scene},");
-            code.AppendLine("    }\n");
-
-            code.AppendLine($"    public enum {SceneSupportTool.OutListEnumName}");
-            code.AppendLine("    {");
-            foreach (var scene in excludedScenesList)
-                code.AppendLine($"        {scene},");
-            code.AppendLine("    }");
-            code.AppendLine("}");
-
-            // 書き出し処理
-            string dir = Path.GetDirectoryName(outputPath);
-            if (!Directory.Exists(dir))
-            {
-                Directory.CreateDirectory(dir);
-            }
-
-            File.WriteAllText(outputPath, code.ToString(), Encoding.UTF8);
-            AssetDatabase.Refresh();
+            // Enum生成実行
+            EnumGenerator.GenerateEnum(SceneSupportTool.InListEnumName, includedScenesList.ToArray(), outputFolder, ns);
+            EnumGenerator.GenerateEnum(SceneSupportTool.OutListEnumName, excludedScenesList.ToArray(), outputFolder, ns);
             
-            Debug.Log($"[UsefulTools] SceneEnum generated to {outputPath}");
+            Debug.Log($"[UsefulTools] SceneEnums generated to {outputFolder} with namespace {ns}");
 
             // イベント発行
             OnGenerated?.Invoke();

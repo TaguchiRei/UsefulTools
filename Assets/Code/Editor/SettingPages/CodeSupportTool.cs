@@ -14,6 +14,13 @@ namespace UsefulTools.Editor
         private const string DefaultIsSerializableKey = "UsefulTools.Code.DefaultIsSerializable";
         private const string DefaultNamespaceKey = "UsefulTools.Code.DefaultNamespace";
 
+        // --- Enum Generation Keys ---
+        private const string EnumOutputFolderKey = "UsefulTools.Code.EnumOutputFolder";
+        private const string EnumNamespaceKey = "UsefulTools.Code.EnumNamespace";
+
+        private const string DefaultEnumOutputFolder = "Assets/Code/AutoGenerate";
+        private const string DefaultEnumNamespace = "UsefulTools.AutoGenerate";
+
         // --- URL Keys ---
         private const string UrlCSharpRefKey = "UsefulTools.Code.UrlCSharp";
         private const string UrlUnityApiKey = "UsefulTools.Code.UrlUnityApi";
@@ -28,6 +35,9 @@ namespace UsefulTools.Editor
         public static bool DefaultUseSummary { get => EditorPrefs.GetBool(DefaultUseSummaryKey, true); set => EditorPrefs.SetBool(DefaultUseSummaryKey, value); }
         public static bool DefaultIsSerializable { get => EditorPrefs.GetBool(DefaultIsSerializableKey, false); set => EditorPrefs.SetBool(DefaultIsSerializableKey, value); }
         public static string DefaultNamespace { get => EditorPrefs.GetString(DefaultNamespaceKey, "MyGame"); set => EditorPrefs.SetString(DefaultNamespaceKey, value); }
+
+        public static string EnumOutputFolder { get => EditorPrefs.GetString(EnumOutputFolderKey, DefaultEnumOutputFolder); set => EditorPrefs.SetString(EnumOutputFolderKey, value); }
+        public static string EnumNamespace { get => EditorPrefs.GetString(EnumNamespaceKey, DefaultEnumNamespace); set => EditorPrefs.SetString(EnumNamespaceKey, value); }
 
         public static string UrlCSharp { get => EditorPrefs.GetString(UrlCSharpRefKey, DefaultUrlCSharp); set => EditorPrefs.SetString(UrlCSharpRefKey, value); }
         public static string UrlUnityApi { get => EditorPrefs.GetString(UrlUnityApiKey, DefaultUrlUnityApi); set => EditorPrefs.SetString(UrlUnityApiKey, value); }
@@ -48,6 +58,22 @@ namespace UsefulTools.Editor
                 DefaultIsSerializable = EditorGUILayout.Toggle("Default Serializable", DefaultIsSerializable);
                 
                 if (GUILayout.Button("Open Code Generator", GUILayout.Height(25))) CodeGenerator.ShowWindow();
+            }
+
+            EditorGUILayout.Space();
+
+            // 2. Enum Generation Settings
+            using (new EditorGUILayout.VerticalScope(EditorStyles.helpBox))
+            {
+                EditorGUILayout.LabelField("Enum Generation Defaults", EditorStyles.miniBoldLabel);
+                EnumOutputFolder = EditorGUILayout.TextField("Output Folder", EnumOutputFolder);
+                EnumNamespace = EditorGUILayout.TextField("Enum Namespace", EnumNamespace);
+
+                if (GUILayout.Button("Reset to Default Settings"))
+                {
+                    EnumOutputFolder = DefaultEnumOutputFolder;
+                    EnumNamespace = DefaultEnumNamespace;
+                }
             }
 
             EditorGUILayout.Space();

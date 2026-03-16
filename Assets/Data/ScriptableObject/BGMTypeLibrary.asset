@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 68d9f3bd24467214f912c9fb7a8c9729, type: 3}
+  m_Name: BGMTypeLibrary
+  m_EditorClassIdentifier: Assembly-CSharp::UsefulTools.AutoGenerate.BGMTypeLibrary
+  Clips:
+  - Type: 0
+    Clip: {fileID: 8300000, guid: df797799f1addc4449de03438fdab07b, type: 3}
+  - Type: 1
+    Clip: {fileID: 8300000, guid: b7019af9797e6584b9aebe1f6fa1dd3a, type: 3}
+  - Type: 2
+    Clip: {fileID: 8300000, guid: 92304756cdfc40b489f921c025bc5174, type: 3}
+  - Type: 3
+    Clip: {fileID: 8300000, guid: 4ebe75f5ec51f47489a59cd5e7caec38, type: 3}
+  - Type: 4
+    Clip: {fileID: 8300000, guid: 2a0dacbc0be14fa44a3e25e9b315013f, type: 3}
+  - Type: 5
+    Clip: {fileID: 8300000, guid: 4b689f8dcde72b9448e9e8c91944361c, type: 3}
+  - Type: 6
+    Clip: {fileID: 8300000, guid: 1b8c6fc7a6990ef429e4556022ec2af2, type: 3}
+  - Type: 7
+    Clip: {fileID: 8300000, guid: f8cb4a9821e10d949ad5dd72ee295a2c, type: 3}
+  - Type: 8
+    Clip: {fileID: 8300000, guid: 40f9bddc1999dc54ebd6c621565714f8, type: 3}

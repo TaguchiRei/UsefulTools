@@ -2,6 +2,7 @@ using UnityEngine;
 using UnityEditor;
 using UnityEngine.InputSystem;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -33,65 +34,25 @@ namespace UsefulTools.Editor
         {
             if (asset == null) return false;
 
-            string folderPath = InputSupportTool.OutputFolder;
+            string outputFolder = InputSupportTool.OutputFolder;
+            if (string.IsNullOrEmpty(outputFolder)) outputFolder = CodeSupportTool.EnumOutputFolder;
+            
+            string ns = CodeSupportTool.EnumNamespace;
 
-            string directoryPath = Path.GetFullPath(Path.Combine(Application.dataPath, "..", folderPath));
-            string sanitizedAssetName = SanitizeName(asset.name);
-            string filePath = Path.Combine(directoryPath, $"{sanitizedAssetName}Enum.cs");
-
-            if (!Directory.Exists(directoryPath))
-            {
-                Directory.CreateDirectory(directoryPath);
-            }
-
-            var sb = new StringBuilder();
-
-            sb.AppendLine("// 自動生成ファイルの為、手動での編集は上書きされます。");
-
-            // ActionMap enum
-            sb.AppendLine("public enum ActionMaps");
-            sb.AppendLine("{");
-
-            int i = 0;
-            foreach (var map in asset.actionMaps)
-            {
-                sb.AppendLine($"    {SanitizeName(map.name)} = {i},");
-                i++;
-            }
-
-            sb.AppendLine("}");
-            sb.AppendLine();
+            // ActionMap enum values
+            var mapNames = asset.actionMaps.Select(m => SanitizeName(m.name)).ToArray();
+            EnumGenerator.GenerateEnum("ActionMaps", mapNames, outputFolder, ns);
 
             // Action enum per ActionMap
             foreach (var map in asset.actionMaps)
             {
                 string actionEnumName = $"{SanitizeName(map.name)}Actions";
-
-                sb.AppendLine($"public enum {actionEnumName}");
-                sb.AppendLine("{");
-
-                i = 0;
-                foreach (var action in map.actions)
-                {
-                    sb.AppendLine($"    {SanitizeName(action.name)} = {i},");
-                    i++;
-                }
-
-                sb.AppendLine("}");
-                sb.AppendLine();
+                var actionNames = map.actions.Select(a => SanitizeName(a.name)).ToArray();
+                EnumGenerator.GenerateEnum(actionEnumName, actionNames, outputFolder, ns);
             }
 
-            try
-            {
-                File.WriteAllText(filePath, sb.ToString(), Encoding.UTF8);
-                Debug.Log($"[UsefulTools] Input enums generated for '{asset.name}' at: {filePath}");
-                return true;
-            }
-            catch (System.Exception e)
-            {
-                Debug.LogError($"[UsefulTools] Failed to generate input enums for '{asset.name}'. {e}");
-                return false;
-            }
+            Debug.Log($"[UsefulTools] Input enums generated for '{asset.name}' at: {outputFolder} with namespace {ns}");
+            return true;
         }
 
         private static string SanitizeName(string name)
