@@ -487,7 +487,7 @@ GameObject:
   - component: {fileID: 2022329875}
   - component: {fileID: 2022329876}
   m_Layer: 0
-  m_Name: TestCode
+  m_Name: GameRule
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -517,9 +517,16 @@ MonoBehaviour:
   m_GameObject: {fileID: 2022329874}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8aba665dd8a1afa4e8b2c62b9104ba35, type: 3}
+  m_Script: {fileID: 11500000, guid: 355cf342092202149807fa5af195a3f5, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TestCode
+  m_EditorClassIdentifier: Assembly-CSharp::SceneRule
+  _rules:
+    rid: -2
+  references:
+    version: 2
+    RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
