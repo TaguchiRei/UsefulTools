@@ -1,9 +1,16 @@
 using System;
 
+/// <summary>
+/// 継承したクラスがルールを規定するクラスであることを保証するインターフェース
+/// </summary>
 public interface IRule
 {
-    GameState State { get; }
-    event Action<GameState> OnGameEndAction;
+    /// <summary>
+    /// このルールが規定するリザルトやエンディングに影響を与える状態
+    /// 
+    /// </summary>
+    RuleState State { get; }
+    event Action<RuleState> OnGameEndAction;
 
     public void StartGame();
 
@@ -17,8 +24,11 @@ public interface IRule
     public void Stop();
 }
 
-
-public enum GameState
+/// <summary>
+/// ゲームルールにおける状態を規定する。
+/// 書き換えてフラグ的に利用してもよし
+/// </summary>
+public enum RuleState
 {
     Playing,
     GameOver,

@@ -11,11 +11,12 @@ public class SceneRule : MonoBehaviour
     {
         foreach (var rule in _rules)
         {
-            rule.StartGame();
             if (rule is IUpdateRule updateRule)
             {
                 _updates += updateRule.Update;
             }
+            
+            rule.StartGame();
         }
     }
 
@@ -23,4 +24,6 @@ public class SceneRule : MonoBehaviour
     {
         _updates?.Invoke();
     }
+    
+    
 }

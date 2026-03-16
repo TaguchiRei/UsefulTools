@@ -4,8 +4,8 @@ using UnityEngine;
 [Serializable]
 public class TimeLimitRule : IUpdateRule
 {
-    public GameState State { get; private set; }
-    public event Action<GameState> OnGameEndAction;
+    public RuleState State { get; private set; }
+    public event Action<RuleState> OnGameEndAction;
 
     [SerializeField] private float _timiLimit;
 
@@ -15,7 +15,7 @@ public class TimeLimitRule : IUpdateRule
 
     public void StartGame()
     {
-        State = GameState.Playing;
+        State = RuleState.Playing;
         _isStopped = false;
         _isStopped = false;
     }
@@ -42,6 +42,7 @@ public class TimeLimitRule : IUpdateRule
         if (_time >= _timiLimit)
         {
             Stop();
+            if (OnGameEndAction != null) OnGameEndAction.Invoke(State);
             OnGameEndAction?.Invoke(State);
         }
     }

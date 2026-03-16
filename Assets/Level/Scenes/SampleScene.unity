@@ -525,10 +525,16 @@ MonoBehaviour:
   references:
     version: 2
     RefIds:
+    - rid: -2
+      type: {class: , ns: , asm: }
     - rid: 2576686076704587869
       type: {class: TimiLimitRule, ns: , asm: Assembly-CSharp}
       data:
+        <State>k__BackingField: 0
         _timiLimit: 10
+        _isPaused: 0
+        _isStopped: 0
+        _time: 0
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
