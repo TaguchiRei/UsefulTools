@@ -4,8 +4,8 @@ using UnityEngine;
 
 public class AudioImportWatcher : AssetPostprocessor
 {
-    private void OnPostprocessAudio(AudioClip arg)
+    private void OnPostprocessAudio(AudioClip clip)
     {
-        
+        AudioImportTab.ShowWindow(clip, assetPath);
     }
 }
