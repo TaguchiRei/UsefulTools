@@ -5,6 +5,8 @@ public interface IRule
     GameState State { get; }
     event Action<GameState> OnGameEndAction;
 
+    public void StartGame();
+
     /// <summary> ゲームをポーズするときに使用 </summary>
     public void Pause();
 
