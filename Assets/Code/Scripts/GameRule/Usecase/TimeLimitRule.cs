@@ -42,7 +42,6 @@ public class TimeLimitRule : IUpdateRule
         if (_time >= _timiLimit)
         {
             Stop();
-            if (OnGameEndAction != null) OnGameEndAction.Invoke(State);
             OnGameEndAction?.Invoke(State);
         }
     }

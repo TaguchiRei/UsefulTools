@@ -15,7 +15,9 @@ public class SceneRule : MonoBehaviour
             {
                 _updates += updateRule.Update;
             }
-            
+
+            rule.OnGameEndAction += OnGameEnd;
+
             rule.StartGame();
         }
     }
@@ -24,6 +26,12 @@ public class SceneRule : MonoBehaviour
     {
         _updates?.Invoke();
     }
-    
-    
+
+    private void OnGameEnd(RuleState state)
+    {
+        foreach (var rule in _rules)
+        {
+            rule.Stop();
+        }
+    }
 }
